@@ -50,8 +50,6 @@ public class FHToggleAgentLauncher extends JPSAgent{
     public static final String KEY_TIMESERIES_CLIENTPROPERTIES = "timeSeriesClientProperties";
     public static final String KEY_DATAIRIS = "dataIRIs";
 	public static final String KEY_NUMOFHOURS = "hours";
-	public static final String KEY_SPECIES_PROPERTIES = "speciesProperties";
-	public static final String KEY_CONTAINSPECIES = "containSpecies";
     
     //set kbClient
     RemoteStoreClient kbClient = new RemoteStoreClient();
@@ -86,9 +84,7 @@ public class FHToggleAgentLauncher extends JPSAgent{
         	String timeseriesDataClientProperties = System.getenv(requestParams.getString(KEY_TIMESERIES_CLIENTPROPERTIES));
         	String DataIRIs = requestParams.getString(KEY_DATAIRIS);
 			String numOfHours = requestParams.getString(KEY_NUMOFHOURS);
-			String speciesProperties = System.getenv(requestParams.getString(KEY_SPECIES_PROPERTIES));
-			String containSpecies = requestParams.getString(KEY_CONTAINSPECIES);
-            args = new String[] {timeseriesDataClientProperties, DataIRIs, numOfHours, speciesProperties, containSpecies};
+            args = new String[] {timeseriesDataClientProperties, DataIRIs, numOfHours};
             jsonMessage = initializeAgent(args);
             jsonMessage.accumulate("message","POST request has been sent successfully.");
             requestParams = jsonMessage;
@@ -105,7 +101,7 @@ public class FHToggleAgentLauncher extends JPSAgent{
       boolean validate = true;
 
       String timeseriesClientProperties;
-      String speciesProperties;
+
       if (requestParams.isEmpty()) {
     	  validate = false;
     	  LOGGER.info("Empty Request!");  
@@ -117,21 +113,12 @@ public class FHToggleAgentLauncher extends JPSAgent{
 		}
 		if (validate == true) {
 			validate = requestParams.has(KEY_NUMOFHOURS);
-		} if (validate == true) {
-			validate = requestParams.has(KEY_CONTAINSPECIES);
-		}
+		} 
 		if (validate == true) {
 			timeseriesClientProperties =  (requestParams.getString(KEY_TIMESERIES_CLIENTPROPERTIES));
 			if (System.getenv(timeseriesClientProperties) == null) {
 				validate = false;
 				LOGGER.info("Unable to validate location of client.properties!");
-			}
-		}
-		if (validate == true) {
-			speciesProperties =  (requestParams.getString(KEY_SPECIES_PROPERTIES));
-			if (System.getenv(speciesProperties) == null) {
-				validate = false;
-				LOGGER.info("Unable to validate location of species.properties!");
 			}
 		}
 		
@@ -206,104 +193,8 @@ public class FHToggleAgentLauncher extends JPSAgent{
 		//loop through results to get data IRI, exceedThreshold, timestamp
 		
 		for (int i = 0; i <= overallResults.length() - 1; i++){
-			JSONObject a = overallResults.getJSONObject("iri_"+i);
-			String timestamp = a.getString("timestamp");
-			Boolean exceedThreshold = a.getBoolean("exceedThreshold");
-			String dataIRI = a.getString("dataIRI");
 
-			LOGGER.info("exceedThreshold for " + dataIRI + " is " + exceedThreshold);
-
-			if (exceedThreshold == true && args.length > 3 && args[4].split(",")[i].contains("true")){
-				LOGGER.info("Beginning queries...");
-				//Create RFIDQueryBuilder
-				FHQueryBuilder builder ;
-				try {
-					builder = new FHQueryBuilder(args[0], args[3]);
-				} catch (IOException e) {
-					throw new JPSRuntimeException(QUERYBUILDER_ERROR_MSG,e);
-				}
-
-				//query for tag IRI with state IRI via saref:hasState
-				String tagIRI = builder.queryForTagWithStateIRI(dataIRI);
-				LOGGER.info("The tag IRI retrieved is " + tagIRI);
-
-				//query for tagged object IRI with tag IRI via ontodevice:isAttachedTo
-				String taggedObjectIRI = builder.queryForTaggedObjectWithIsAttachedTo(tagIRI);
-				LOGGER.info("The bottle IRI retrieved is " + taggedObjectIRI);
-
-			    //query for bottle label via rdfs:label
-				String objectLabel = builder.queryForTaggedObjectLabel(taggedObjectIRI);
-				LOGGER.info("The label of the tagged object is " + objectLabel);
-
-				//query for chemical amount IRI with bottle IRI via ontolab:isFilledWith
-				String chemicalAmountIRI = builder.queryForChemicalAmountWithIsFilledWith(taggedObjectIRI);
-				LOGGER.info("The chemical amount IRI retrieved is " + chemicalAmountIRI);
-
-				//query for chemical IRI with chemical amount IRI via ontocape_cps_behavior:refersToMaterial
-				String chemicalIRI = builder.queryForChemicalWithRefersToMaterial(chemicalAmountIRI);
-				LOGGER.info("The material IRI retrieved is " + chemicalIRI);
-
-				String speciesIRI;
-				//check whether there are IRIs instantiated via ontocape_material:intrinsicCharacteristics
-				//If so continue the queries to retrieve the chemicalComponent IRI which is equivalent to the species IRI
-				if (builder.queryForChemicalComponentWithIntrinsicCharacteristics(chemicalIRI) != null){
-					speciesIRI = builder.queryForChemicalComponentWithIntrinsicCharacteristics(chemicalIRI);
-				} else {
-				//query for phase IRI with chemical IRI via ontocape_material:thermodynamicBehavior
-				String phaseIRI = builder.queryForPhaseWithThermodynamicBehavior(chemicalIRI);
-				LOGGER.info("The phase IRI retrieved is " + phaseIRI);
-
-				//query for phase component IRI with phase IRI via ontocape_system:isComposedOfSubsystem
-				String phaseComponentIRI = builder.queryForPhaseComponentWithIsComposedOfSubsystem(phaseIRI);
-				LOGGER.info("The phase component IRI retrieved is " + phaseComponentIRI);
-
-				//query for species IRI with phase component IRI via ontocape_phase_system:representsOccurenceOf
-				speciesIRI = builder.queryForSpeciesWithRepresentsOccurenceOf(phaseComponentIRI);
-				LOGGER.info("The species IRI retrieved is " + speciesIRI);
-				}
-
-				//query for species label via rdfs:label
-				String speciesLabel = builder.queryForSpeciesLabel(speciesIRI);
-				LOGGER.info("The label of the species is " + speciesLabel);
-
-				//query for hazard statement IRIs via ontospecies:hasGHSHazardStatements
-				JSONArray GHSHazardStatements = builder.queryForGHSHazardStatements(speciesIRI);
-
-				//query for the label and comment of each hazard statement IRI and put them in a hash map
-				Map<String, List<String>> map = builder.queryForLabelAndCommentForGHSHazardStatements(GHSHazardStatements);
-				
-				LOGGER.info("Preparing to send email...");
-				agent.sendEmail(dataIRI, objectLabel, speciesLabel, timestamp, map);
-				LOGGER.info("Alert Email sent for " + dataIRI);
-				jsonMessage.accumulate("Result", "Alert Email sent for " + dataIRI);
-
-			} else if (exceedThreshold == true) {
-				LOGGER.info("Beginning queries...");
-				//Create RFIDQueryBuilder
-				FHQueryBuilder builder ;
-				try {
-					builder = new FHQueryBuilder(args[0], args[3]);
-				} catch (IOException e) {
-					throw new JPSRuntimeException(QUERYBUILDER_ERROR_MSG, e);
-				}
-				
-				//query for tag IRI with state IRI via saref:hasState
-				String tagIRI = builder.queryForTagWithStateIRI(dataIRI);
-				LOGGER.info("The tag IRI retrieved is " + tagIRI);
-
-				//query for tagged object IRI with tag IRI via ontodevice:isAttachedTo
-				String taggedObjectIRI = builder.queryForTaggedObjectWithIsAttachedTo(tagIRI);
-				LOGGER.info("The bottle IRI retrieved is " + taggedObjectIRI);
-
-				//query for tagged object label via rdfs:label
-				String label = builder.queryForTaggedObjectLabel(taggedObjectIRI);
-				LOGGER.info("The label of the tagged object is " + label);
-
-				LOGGER.info("Preparing to send email...");
-				agent.sendEmail(dataIRI, label, null, timestamp, null);
-				LOGGER.info("Alert Email sent for " + dataIRI);
-				jsonMessage.accumulate("Result", "Alert Email sent for " + dataIRI);
-			}
+			//TODO Fill in FH toggle function here
 		}
 		 return jsonMessage;
 	}
