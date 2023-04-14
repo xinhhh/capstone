@@ -4,12 +4,17 @@ import uk.ac.cam.cares.jps.base.exception.JPSRuntimeException;
 import uk.ac.cam.cares.jps.base.query.RemoteRDBStoreClient;
 import uk.ac.cam.cares.jps.base.timeseries.TimeSeries;
 import uk.ac.cam.cares.jps.base.timeseries.TimeSeriesClient;
+
 import java.io.IOException;
 import java.sql.Connection;
 import java.text.SimpleDateFormat;
 import java.time.*;
 import java.util.*;
 import java.util.TimeZone;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
@@ -66,12 +71,27 @@ public class FHToggleAgent{
      * Standard constructor which receives and parses DataIRIs from the AgentLauncher class.
      * @param dataIRIs The data IRIs to query latest data for
      */
-    public FHToggleAgent(String dataIRIs, String Hours) throws IOException {
-        for (int i = 0; i <= dataIRIs.split(",").length - 1; i++) {
-            this.dataIRIList.add(i, dataIRIs.split(",")[i]);
+    public FHToggleAgent(String propertiesFile) throws IOException {
+        try (InputStream input = new FileInputStream(propertiesFile)) {
+            // Load properties file from specified path
+            Properties prop = new Properties();
+            prop.load(input);
+            String mappingFolder;
+            try {
+            // Read the mappings folder from the properties file
+            mappingFolder = System.getenv(prop.getProperty("thingsboard.mappingfolder"));
+            }
+            catch (NullPointerException e) {
+            	throw new IOException ("The key thingsboard.mappingfolder cannot be found in the properties file.");
+            }
+            if (mappingFolder == null) {
+                throw new InvalidPropertiesFormatException("The properties file does not contain the key thingsboard.mappingfolder " +
+                        "with a path to the folder containing the required JSON key to IRI mappings.");
+            }
+            // Read the JSON key to IRI mappings from
+            readMappings(mappingFolder);
         }
         LOGGER.info("The first element in this list is " + dataIRIList.get(0));
-        this.numOfHours = Long.valueOf(Hours);
     }
 
     /**
@@ -88,6 +108,31 @@ public class FHToggleAgent{
      */
     public void setRDBClient(RemoteRDBStoreClient RDBClient) {
         this.RDBClient = RDBClient;
+    }
+
+    private void readMappings(String propertiesFile) throws IOException {
+        try (InputStream input = new FileInputStream(propertiesFile)) {
+            // Load properties file from specified path
+            Properties prop = new Properties();
+            prop.load(input);
+
+            String IRIMapping;
+            try {
+                // Read the mappings folder from the properties file
+                IRIMapping = prop.getProperty("derivation.mapping");
+            }
+            catch (NullPointerException e) {
+                throw new IOException ("The key derivation.mapping cannot be found in the properties file.");
+            }
+            if (IRIMapping == null) {
+                throw new InvalidPropertiesFormatException("The properties file does not contain the key derivation.mapping " +
+                        "with a path to the folder containing the required JSON key to IRI mappings.");
+            }
+
+            for(String key : prop.stringPropertyNames()) {
+                dataIRIList.add(prop.getProperty(key));
+            }
+        }
     }
 
     /**
