@@ -15,6 +15,7 @@ import java.util.TimeZone;
 import java.io.FileInputStream;
 import java.io.InputStream;
 
+import org.apache.jena.atlas.json.JSON;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
@@ -46,11 +47,6 @@ public class FHToggleAgent{
      * List to store timeseries string values
      */
     private List<String> dataValuesAsString;
-
-    /**
-     * Number of hours
-     */
-    private long numOfHours ;
 
     /**
      * timeSeries Object
@@ -131,7 +127,7 @@ public class FHToggleAgent{
         for (int i = 0; i <= dataIRIList.size() - 1; i++) {
             JSONObject values = new JSONObject();
             TimeSeries<OffsetDateTime> LatestTimeSeries = queryLatestRFIDStatus(dataIRIList.get(i));
-            values = checkRFIDStatusThreshold(LatestTimeSeries, dataIRIList.get(i), numOfHours);
+            values = getLatestSetpoint(LatestTimeSeries, dataIRIList.get(i));
             results.put("iri_"+i, values);
             LOGGER.info(results);
         }
@@ -140,69 +136,33 @@ public class FHToggleAgent{
         return results;
     }
 
-    /**
-     * 
-     * @param timeSeriesObject The timeseries containing the latest timeseries data
-     * @param dataIRI The data IRI to retrieve data for
-     * @param hours Number of hours
-     * @return values A JSONObject with the following format: {exceedThreshold: true/false, timestamp: timestamp value, dataIRI: data IRI 1}
-     */
-    public JSONObject checkRFIDStatusThreshold (TimeSeries<OffsetDateTime> timeSeriesObject, String dataIRI, Long hours) {
-    	Boolean exceedThreshold = false ;
-        String latestTimeSeriesValue ;
-        OffsetDateTime latestTimeStamp ;
-
+    public JSONObject getLatestSetpoint(TimeSeries<OffsetDateTime> timeSeriesObject, String dataIRI) {
+        JSONObject result = new JSONObject();
+        String latestTimeSeriesValue;
+        OffsetDateTime latestTimeStamp;
+        Double setpointVal = 0.;
         try {
-        //process timeseries object and convert to a suitable form, retrieve values only
-    	dataValuesAsString = timeSeriesObject.getValuesAsString(dataIRI);
-    	latestTimeSeriesValue = dataValuesAsString.get(dataValuesAsString.size() - 1);
-    	latestTimeStamp = timeSeriesObject.getTimes().get(timeSeriesObject.getTimes().size() - 1);
+            //process timeseries object and convert to a suitable form, retrieve values only
+            dataValuesAsString = timeSeriesObject.getValuesAsString(dataIRI);
+            latestTimeSeriesValue = dataValuesAsString.get(dataValuesAsString.size() - 1);
+            latestTimeStamp = timeSeriesObject.getTimes().get(timeSeriesObject.getTimes().size() - 1);
         } catch (Exception e){
             throw new JPSRuntimeException("Unable to retrieve latest value and timestamp from timeseries object.");
         }
 
-    	if (latestTimeSeriesValue.contains("In")) {
-    	LOGGER.info("The latest RFID status is " + latestTimeSeriesValue);
-    	LOGGER.info("The latest timestamp is "+ latestTimeStamp);
-        exceedThreshold = false;
-    	} 
-        else if (latestTimeSeriesValue.contains("Out")) {
-            // if latest status is Out and timestamp is "2022-10-27 18:20:02+08"
-			// take timestamp and add the number of hours in which a bottle is allowed to be outside of the cabinet for 
-			// e.g. "2022-10-27 18:20:02+08 + 4 hours = 2022-10-27 22:20:02+08"
-            //This is the thresholdTimeStamp
-            OffsetDateTime thresholdTimeStamp = latestTimeStamp.plusHours(hours);
-
-            //get current datetime
-            long timestamp = System.currentTimeMillis();
-            Date date = new java.util.Date(timestamp);
-            SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-            Object ts = sdf.format(date);
-            LocalDateTime localTime = LocalDateTime.parse(ts.toString());
-
-            // Then add the zone id
-            OffsetDateTime currentDateTime = OffsetDateTime.of(localTime, ZoneOffset.UTC);
-
-            // if 2022-10-27 22:20:02+08 is before the current date time, it means that the bottle has been outside of the cabinet for a time
-            // period longer than the allowed duration
-            LOGGER.info("Comparing threshold timestamp " + thresholdTimeStamp + " with current timestamp " + currentDateTime);
-
-            if (thresholdTimeStamp.isBefore(currentDateTime)) {
-                exceedThreshold = true;
-            }
-            else {
-                exceedThreshold = false;
-            }
+        if(latestTimeSeriesValue.contains("1")) {
+            //TODO change setpoiint value to in-use capacity once available
+            setpointVal = 1.;
         }
-        
-        JSONObject values = new JSONObject();
 
-        values.put("exceedThreshold", exceedThreshold);
-        values.put("timestamp", latestTimeStamp.toString());
-        values.put("dataIRI", dataIRI);
-        return values;
+        result.put("dataIRI", dataIRI);
+        result.put("ts", latestTimeStamp);
+        result.put("value", setpointVal);
+
+        return result;
     }
+
+
     
 }
 
