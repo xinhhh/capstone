@@ -76,20 +76,16 @@ public class FHToggleAgent{
             // Load properties file from specified path
             Properties prop = new Properties();
             prop.load(input);
-            String mappingFolder;
-            try {
+            
             // Read the mappings folder from the properties file
-            mappingFolder = System.getenv(prop.getProperty("thingsboard.mappingfolder"));
-            }
-            catch (NullPointerException e) {
-            	throw new IOException ("The key thingsboard.mappingfolder cannot be found in the properties file.");
-            }
-            if (mappingFolder == null) {
-                throw new InvalidPropertiesFormatException("The properties file does not contain the key thingsboard.mappingfolder " +
-                        "with a path to the folder containing the required JSON key to IRI mappings.");
-            }
-            // Read the JSON key to IRI mappings from
-            readMappings(mappingFolder);
+            for(String key : prop.stringPropertyNames()) {
+                try {
+                    dataIRIList.add(prop.getProperty(key));
+                }
+                catch (NullPointerException e) {
+                    throw new IOException ("The IRI for " + key + "cannot be found in the properties file.");
+                }
+             }
         }
         LOGGER.info("The first element in this list is " + dataIRIList.get(0));
     }
@@ -108,31 +104,6 @@ public class FHToggleAgent{
      */
     public void setRDBClient(RemoteRDBStoreClient RDBClient) {
         this.RDBClient = RDBClient;
-    }
-
-    private void readMappings(String propertiesFile) throws IOException {
-        try (InputStream input = new FileInputStream(propertiesFile)) {
-            // Load properties file from specified path
-            Properties prop = new Properties();
-            prop.load(input);
-
-            String IRIMapping;
-            try {
-                // Read the mappings folder from the properties file
-                IRIMapping = prop.getProperty("derivation.mapping");
-            }
-            catch (NullPointerException e) {
-                throw new IOException ("The key derivation.mapping cannot be found in the properties file.");
-            }
-            if (IRIMapping == null) {
-                throw new InvalidPropertiesFormatException("The properties file does not contain the key derivation.mapping " +
-                        "with a path to the folder containing the required JSON key to IRI mappings.");
-            }
-
-            for(String key : prop.stringPropertyNames()) {
-                dataIRIList.add(prop.getProperty(key));
-            }
-        }
     }
 
     /**

@@ -141,7 +141,7 @@ public class FHToggleAgentLauncher extends JPSAgent{
 		 FHToggleAgent agent;
 
 		 try {
-			 agent = new FHToggleAgent(args[1], args[2]);
+			 agent = new FHToggleAgent(args[1]);
 		 } catch (IOException e) {
 			 LOGGER.error(AGENT_ERROR_MSG, e);
 			 throw new JPSRuntimeException(AGENT_ERROR_MSG, e);
