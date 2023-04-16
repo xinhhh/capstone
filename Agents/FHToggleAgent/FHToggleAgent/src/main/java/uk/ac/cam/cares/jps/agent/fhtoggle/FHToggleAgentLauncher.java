@@ -17,6 +17,7 @@ import java.time.*;
 import java.util.*;
 import javax.servlet.annotation.WebServlet;
 import javax.ws.rs.BadRequestException;
+import javax.xml.crypto.Data;
 
 import org.apache.logging.log4j.LogManager;
 import javax.servlet.http.HttpServletRequest;
@@ -49,7 +50,7 @@ public class FHToggleAgentLauncher extends JPSAgent{
     //keys in the request's JSON Object
     public static final String KEY_TIMESERIES_CLIENTPROPERTIES = "timeSeriesClientProperties";
     public static final String KEY_DATAIRIS = "dataIRIs";
-	public static final String KEY_NUMOFHOURS = "hours";
+
     
     //set kbClient
     RemoteStoreClient kbClient = new RemoteStoreClient();
@@ -82,9 +83,8 @@ public class FHToggleAgentLauncher extends JPSAgent{
 		if (validateInput(requestParams)) {
 			LOGGER.info("Passing request to Agent..");
         	String timeseriesDataClientProperties = System.getenv(requestParams.getString(KEY_TIMESERIES_CLIENTPROPERTIES));
-        	String DataIRIs = requestParams.getString(KEY_DATAIRIS);
-			String numOfHours = requestParams.getString(KEY_NUMOFHOURS);
-            args = new String[] {timeseriesDataClientProperties, DataIRIs, numOfHours};
+        	String DataIRIs =  System.getenv(requestParams.getString(KEY_DATAIRIS));
+            args = new String[] {timeseriesDataClientProperties, DataIRIs};
             jsonMessage = initializeAgent(args);
             jsonMessage.accumulate("message","POST request has been sent successfully.");
             requestParams = jsonMessage;
@@ -101,6 +101,7 @@ public class FHToggleAgentLauncher extends JPSAgent{
       boolean validate = true;
 
       String timeseriesClientProperties;
+	  String dataIRIProperties;
 
       if (requestParams.isEmpty()) {
     	  validate = false;
@@ -109,11 +110,13 @@ public class FHToggleAgentLauncher extends JPSAgent{
       else {
 		validate = requestParams.has(KEY_TIMESERIES_CLIENTPROPERTIES);
 		if (validate == true) {
-			validate = requestParams.has(KEY_DATAIRIS);
+			dataIRIProperties = (requestParams.getString(KEY_DATAIRIS));
+			if (System.getenv(dataIRIProperties) == null) {
+				validate = false;
+				LOGGER.info("Unable to validate location of iri.properties!");
+			}
 		}
-		if (validate == true) {
-			validate = requestParams.has(KEY_NUMOFHOURS);
-		} 
+		
 		if (validate == true) {
 			timeseriesClientProperties =  (requestParams.getString(KEY_TIMESERIES_CLIENTPROPERTIES));
 			if (System.getenv(timeseriesClientProperties) == null) {
