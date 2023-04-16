@@ -106,7 +106,7 @@ public class FHToggleAgent{
      * Query the database for the latest RFID tag status and timestamp.
      * @param dataIRI the data IRI to query values from
      */
-    public TimeSeries<OffsetDateTime> queryLatestRFIDStatus(String dataIRI)throws IllegalArgumentException {
+    public TimeSeries<OffsetDateTime> queryLatestStatus(String dataIRI)throws IllegalArgumentException {
         try (Connection conn = RDBClient.getConnection()){
             timeseries = tsClient.getLatestData(dataIRI, conn);
         } catch (Exception e) {
@@ -126,7 +126,7 @@ public class FHToggleAgent{
 
         for (int i = 0; i <= dataIRIList.size() - 1; i++) {
             JSONObject values = new JSONObject();
-            TimeSeries<OffsetDateTime> LatestTimeSeries = queryLatestRFIDStatus(dataIRIList.get(i));
+            TimeSeries<OffsetDateTime> LatestTimeSeries = queryLatestStatus(dataIRIList.get(i));
             values = getLatestSetpoint(LatestTimeSeries, dataIRIList.get(i));
             results.put("iri_"+i, values);
             LOGGER.info(results);
@@ -162,6 +162,10 @@ public class FHToggleAgent{
         return result;
     }
 
+
+    public void sendSetpoint (JSONObject result) {
+        //TODO contact the BACnet(?) API here
+    }
 
     
 }

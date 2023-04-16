@@ -191,11 +191,18 @@ public class FHToggleAgentLauncher extends JPSAgent{
 
 		
 		//loop through results to get data IRI, exceedThreshold, timestamp
-		
+		JSONObject result = new JSONObject();
 		for (int i = 0; i <= overallResults.length() - 1; i++){
-
-			//TODO Fill in FH toggle function here
+			try{
+				result = overallResults.getJSONObject("iri_" + i);
+				agent.sendSetpoint(result);
+			}
+			catch(Exception e){
+				throw new JPSRuntimeException("Cannot change VAV setpoint value for " + result.getString("dataIRI"), e);
+			}
+			
 		}
+		jsonMessage.accumulate("Result", "Changed setpoint via BACnet.");
 		 return jsonMessage;
 	}
 
